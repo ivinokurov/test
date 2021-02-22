@@ -10,10 +10,10 @@ import SwiftUI
 struct ContentView : View {
     
     @ObservedObject var manager = HTTPManager()
-    @State var showAlert = false
-    
     @State var login: String = Helper.getLogin()
     @State var password: String = "" // Helper.getPassword()
+    @State var readyToShowPayments: Bool = false
+    @State var showAlert: Bool = false
     
     let greyColor = Color(red: 244.0/255.0, green: 244.0/255.0, blue: 244.0/255.0, opacity: 1.0)
     
@@ -30,12 +30,26 @@ struct ContentView : View {
                 .padding(.bottom, 20)
             Button(action: {
                 self.manager.postAuth(login: self.login, password: self.password)
-                guard self.manager.token != nil else {
-                    self.showAlert = true
-                    return
+                
+                let runLoop = RunLoop.current
+                while runLoop.run(mode: RunLoop.Mode.default, before: Date(timeIntervalSinceNow: 5.0)) {
+                    if self.manager.token != nil {break}
+                }
+                
+                if self.manager.token != nil {
+                    self.manager.getPayments()
+                    while runLoop.run(mode: RunLoop.Mode.default, before: Date(timeIntervalSinceNow: 5.0)) {
+                        if !self.manager.isLoading {break}
+                    }
+                    if !self.manager.isLoading {
+                        self.readyToShowPayments = true
+                    }
                 }
             })
             { LoginButtonContent() }
+                .sheet(isPresented: $readyToShowPayments) {
+                    PaimentsView(manager: self.manager)
+                }
             Button(action: {
                 Helper.removeFullInfo()
                 self.login = Helper.getLogin()
@@ -77,5 +91,29 @@ struct LogoutButtonContent : View {
             .cornerRadius(15.0)
     }
 }
+
+struct PaimentsView: View {
+    var manager: HTTPManager? = nil
+    init(manager: HTTPManager) {
+        self.manager = manager
+    }
+
+    var body: some View {
+        NavigationView {
+            List {
+                ForEach(manager!.payments) { payment in
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(payment.desc!).font(.headline)
+                        Text(payment.currency!).font(.subheadline)
+                        Text(payment.amount!).font(.subheadline)
+                    }
+                    .padding(.top, 5)
+                }
+            }
+            .navigationBarTitle(Text("Платежи"))
+        }
+    }
+}
+
 
 
