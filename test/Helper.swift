@@ -11,17 +11,17 @@ import UIKit
 class Helper {
     
     static let defaults = UserDefaults.standard
-    
+    /*
     class func showAlert(title: String, msg: String) {
-            let alert = UIAlertController(title: title, message: msg, preferredStyle: .alert)
-            let action = UIAlertAction(title: "OK", style: .default, handler: nil)
-            alert.addAction(action)
-            UIApplication.shared.windows.first!.rootViewController?.present(alert, animated: true, completion: nil)
-        }
-    
+        let alert = UIAlertController(title: title, message: msg, preferredStyle: .alert)
+        let action = UIAlertAction(title: "OK", style: .default, handler: nil)
+        alert.addAction(action)
+        UIApplication.shared.windows.first { $0.isKeyWindow }?.rootViewController?.present(alert, animated: true, completion: nil)
+    }
+    */
     class func saveFullInfo(login: String, password: String) {
         defaults.set(login, forKey: "login")
-        defaults.set(password, forKey: "password")
+        defaults.set(password, forKey: "password")  // может и потребуется 
     }
     
     class func removeFullInfo() {

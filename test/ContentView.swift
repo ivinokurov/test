@@ -13,7 +13,7 @@ struct ContentView : View {
     @State var login: String = Helper.getLogin()
     @State var password: String = "" // Helper.getPassword()
     @State var readyToShowPayments: Bool = false
-    @State var showAlert: Bool = false
+    @State var showErrorAlert: Bool = false
     
     let greyColor = Color(red: 244.0/255.0, green: 244.0/255.0, blue: 244.0/255.0, opacity: 1.0)
     
@@ -29,29 +29,21 @@ struct ContentView : View {
                 .background(greyColor)
                 .padding(.bottom, 20)
             Button(action: {
-                self.manager.postAuth(login: self.login, password: self.password)
-                
-                let runLoop = RunLoop.current
-                while runLoop.run(mode: RunLoop.Mode.default, before: Date(timeIntervalSinceNow: 5.0)) {
-                    if self.manager.token != nil {break}
-                }
-                
-                if self.manager.token != nil {
-                    self.manager.getPayments()
-                    while runLoop.run(mode: RunLoop.Mode.default, before: Date(timeIntervalSinceNow: 5.0)) {
-                        if !self.manager.isLoading {break}
-                    }
-                    if !self.manager.isLoading {
-                        self.readyToShowPayments = true
-                    }
-                }
+                self.manager.showPayments(login: self.login, password: self.password, completion: { result in
+                    self.readyToShowPayments = result
+                    self.showErrorAlert = !result
+                })
             })
             { LoginButtonContent() }
                 .sheet(isPresented: $readyToShowPayments) {
                     PaimentsView(manager: self.manager)
                 }
+                .alert(isPresented: $showErrorAlert) {
+                    Alert(title: Text("Ошибка!"))
+            }
             Button(action: {
                 Helper.removeFullInfo()
+
                 self.login = Helper.getLogin()
                 self.password = "" // Helper.getPassword()
             })
@@ -71,12 +63,12 @@ struct ContentView_Previews : PreviewProvider {
 
 struct LoginButtonContent : View {
     var body: some View {
-        return Text("ВОЙТИ")
+        return Text("ВОЙТИ").bold()
             .font(.headline)
             .foregroundColor(.white)
             .padding()
             .frame(width: 220, height: 60)
-            .background(Color.green)
+            .background(Color.blue)
             .cornerRadius(15.0)
     }
 }
@@ -84,16 +76,15 @@ struct LoginButtonContent : View {
 struct LogoutButtonContent : View {
     var body: some View {
         return Text("Сменить пользователя")
-            .font(.footnote)
+            .font(.subheadline)
             .foregroundColor(.red)
             .padding()
             .frame(width: 220, height: 60)
-            .cornerRadius(15.0)
     }
 }
 
 struct PaimentsView: View {
-    var manager: HTTPManager? = nil
+    var manager: HTTPManager
     init(manager: HTTPManager) {
         self.manager = manager
     }
@@ -101,11 +92,11 @@ struct PaimentsView: View {
     var body: some View {
         NavigationView {
             List {
-                ForEach(manager!.payments) { payment in
+                ForEach(self.manager.payments) { payment in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(payment.desc!).font(.headline)
-                        Text(payment.currency!).font(.subheadline)
-                        Text(payment.amount!).font(.subheadline)
+                        Text(payment.desc!).font(.title).bold()
+                        Text("Валюта: " + payment.currency!).font(.subheadline)
+                        Text("Размер платежа: " + payment.amount!).font(.subheadline)
                     }
                     .padding(.top, 5)
                 }

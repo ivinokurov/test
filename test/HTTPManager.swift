@@ -13,7 +13,6 @@ class HTTPManager: ObservableObject {
 
     var token: String?
     var baseURL = "http://82.202.204.94/api"
-    var isLoading : Bool = false
     
     private struct AuthResponse: Decodable {
         struct SuccessInfo: Decodable {
@@ -28,7 +27,7 @@ class HTTPManager: ObservableObject {
         var desc: String?
         var amount: String?
         var currency: String?
-    //    var created: String?
+    //    var created: String? не понял, что здесь такое
         
         init(desc: String?, amount: String?, currency: String?/*, created: String?*/) {
             id = UUID()
@@ -40,7 +39,7 @@ class HTTPManager: ObservableObject {
     }
     var payments = [PaymentsResponse]()
 
-    func postAuth(login: String, password: String) {
+    func postAuth(login: String, password: String, completion: @escaping ((String?) -> Void)) {
         
         guard let url = URL(string: baseURL + "/login") else { return }
         var request = URLRequest(url: url)
@@ -54,35 +53,34 @@ class HTTPManager: ObservableObject {
             request.setValue(value, forHTTPHeaderField: key)
         }
         
-        self.token = nil
-        
         URLSession.shared.dataTask(with: request) { (data, response, error) in
             guard let data = data else { return }
-            do {
-                let resData = try JSONDecoder().decode(AuthResponse.self, from: data)
-                if resData.success == "true" {
-                    DispatchQueue.main.async {
-                        #if DEBUG
-                            debugPrint(resData.response.token)
-                        #endif
-                        self.token = resData.response.token
+
+            let resData = try? JSONDecoder().decode(AuthResponse.self, from: data)
+                if let response = resData {
+                    if response.success == "true" {
+                        DispatchQueue.main.async {
+                            #if DEBUG
+                                debugPrint(response.response.token)
+                            #endif
+                        self.token = response.response.token
                         Helper.saveFullInfo(login: login, password: password)
+                        completion(self.token!)
+                        }
                     }
                 } else {
-                    DispatchQueue.main.async {
-                        Helper.showAlert(title: "Ошибка", msg: "Логин или пароль неверные")
-                    }
+                    completion(nil)
                 }
-            } catch {
-                DispatchQueue.main.async {
-                    Helper.showAlert(title: "Ошибка", msg: error.localizedDescription)
-                }
-            }
         }.resume()
     }
     
-    func getPayments() {
-        guard let url = URL(string: baseURL + "/payments?token=" + self.token!) else { return }
+    func getPayments(token: String?,  completion: @escaping ((Bool) -> Void)) {
+        guard token != nil else {
+            return completion(false)
+        }
+        guard let url = URL(string: baseURL + "/payments?token=" + token!) else {
+            return completion(false)
+        }
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
@@ -92,10 +90,11 @@ class HTTPManager: ObservableObject {
         }
 
         self.payments.removeAll()
-        self.isLoading = true
         
         URLSession.shared.dataTask(with: request) { (data, response, error) in
-            guard let data = data else { return }
+            guard let data = data else {
+                return
+            }
 
             let resData = try? JSONSerialization.jsonObject(with: data, options: .allowFragments) as? [String: Any]
             if let response = resData!["response"] as? [[String:Any]] {
@@ -103,11 +102,24 @@ class HTTPManager: ObservableObject {
                     let desc = payment["desc"] as? String
                     let amount = payment["amount"] as? String ?? String(payment["amount"] as! Double)
                     let currency = payment["currency"] as? String ?? ""
-                    //     let created = payment["created"] as? String
+                //    let created = payment["created"] as? String
                     return PaymentsResponse(desc: desc, amount: amount, currency: currency/*, created: created*/ )
                 }
-                self.isLoading = false
+                if self.payments.isEmpty {
+                    completion(false)
+                } else {
+                    completion(true)
+                }
             }
         }.resume()
+    }
+    
+    func showPayments(login: String, password: String,  completion: @escaping ((Bool) -> Void)) {
+        self.postAuth(login: login, password: password, completion: {
+            token in self.getPayments(token: token, completion: {
+                result in
+                completion(result)
+            })
+        })
     }
 }
